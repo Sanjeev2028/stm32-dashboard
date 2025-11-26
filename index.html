@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STM32 Environmental Monitor</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Paho MQTT -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="icon.png">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon.png">
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: #0f172a;
+            background-image:
+                radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
+                radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 1) 0, transparent 50%),
+                radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 1) 0, transparent 50%);
+            color: white;
+            min-height: 100vh;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1.5rem;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .neon-button {
+            background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .neon-button:hover {
+            box-shadow: 0 0 25px rgba(139, 92, 246, 0.7);
+            transform: translateY(-2px);
+        }
+
+        .neon-button:active {
+            transform: translateY(1px);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .status-connected {
+            background-color: #4ade80;
+            box-shadow: 0 0 10px #4ade80;
+        }
+
+        .status-disconnected {
+            background-color: #ef4444;
+            box-shadow: 0 0 10px #ef4444;
+        }
+    </style>
+</head>
+
+<body class="p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto space-y-6">
+
+        <!-- Header -->
+        <div class="glass-panel p-6 flex justify-between items-center">
+            <div>
+                <h1
+                    class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                    STM32 EnviroMonitor
+                </h1>
+                <p class="text-gray-400 text-sm mt-1">Real-time IoT Dashboard</p>
+            </div>
+            <div class="flex items-center bg-black/20 px-4 py-2 rounded-full gap-3">
+                <span id="last-updated" class="text-xs text-gray-500 hidden md:inline">Updated: --:--:--</span>
+                <div class="flex items-center">
+                    <span id="status-dot" class="status-dot status-disconnected"></span>
+                    <span id="status-text" class="text-sm font-medium text-gray-300">Disconnected</span>
+                </div>
+                <button onclick="showSettings()" class="text-gray-400 hover:text-white transition-colors"
+                    title="Settings">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Stats Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Temperature -->
+            <div class="glass-panel p-6 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                    <svg class="w-16 h-16" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <h3 class="text-gray-400 text-sm font-medium uppercase tracking-wider">Temperature</h3>
+                <div class="mt-2 flex items-baseline">
+                    <span id="val-temp" class="text-4xl font-bold text-white">--</span>
+                    <span class="ml-1 text-xl text-gray-400">°C</span>
+                </div>
+            </div>
+
+            <!-- Humidity -->
+            <div class="glass-panel p-6 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                    <svg class="w-16 h-16" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <h3 class="text-gray-400 text-sm font-medium uppercase tracking-wider">Humidity</h3>
+                <div class="mt-2 flex items-baseline">
+                    <span id="val-hum" class="text-4xl font-bold text-white">--</span>
+                    <span class="ml-1 text-xl text-gray-400">%</span>
+                </div>
+            </div>
+
+            <!-- Pressure -->
+            <div class="glass-panel p-6 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                    <svg class="w-16 h-16" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <h3 class="text-gray-400 text-sm font-medium uppercase tracking-wider">Pressure</h3>
+                <div class="mt-2 flex items-baseline">
+                    <span id="val-press" class="text-4xl font-bold text-white">--</span>
+                    <span class="ml-1 text-xl text-gray-400">hPa</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="glass-panel p-6">
+            <h3 class="text-lg font-semibold mb-4">Live Trends</h3>
+            <div class="h-64">
+                <canvas id="sensorChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="glass-panel p-6 text-center">
+            <div class="flex flex-col md:flex-row gap-4 justify-center">
+                <button onclick="sendCommand('READ')"
+                    class="neon-button px-8 py-3 rounded-xl font-bold text-white flex-1">
+                    READ SENSORS
+                </button>
+            </div>
+            <p class="mt-3 text-xs text-gray-500">Tap "Read Sensors" to refresh data</p>
+        </div>
+
+        <!-- Debug Log -->
+        <div class="glass-panel p-4 mt-6">
+            <h3 class="text-xs font-bold text-gray-500 uppercase mb-2">Debug Log</h3>
+            <div id="debug-log" class="text-xs font-mono text-gray-400 h-24 overflow-y-auto bg-black/20 p-2 rounded">
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal"
+        class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center z-50">
+        <div class="glass-panel p-6 w-full max-w-md mx-4">
+            <h2 class="text-xl font-bold mb-4">Settings</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Adafruit IO Username</label>
+                    <input id="aio-user" type="text"
+                        class="w-full bg-black/30 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Adafruit IO Key</label>
+                    <input id="aio-key" type="password"
+                        class="w-full bg-black/30 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <button onclick="saveSettings()" class="w-full neon-button py-2 rounded-lg font-bold mt-2">Save &
+                    Connect</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+
+            // --- LOGGING UTILITY ---
+            function log(msg) {
+                console.log(msg);
+                const logDiv = document.getElementById('debug-log');
+                if (logDiv) {
+                    const time = new Date().toLocaleTimeString();
+                    logDiv.innerHTML += `<div><span class="text-gray-600">[${time}]</span> ${msg}</div>`;
+                    logDiv.scrollTop = logDiv.scrollHeight;
+                }
+            }
+
+            log("Dashboard starting...");
+
+            // --- VARIABLES ---
+            var client = null;
+            var isConnected = false;
+            var sensorChart = null;
+
+            // --- CREDENTIALS ---
+            var MQTT_USER = localStorage.getItem('aio_user') || "";
+            var MQTT_KEY = localStorage.getItem('aio_key') || "";
+
+            // --- CONFIGURATION ---
+            const MQTT_BROKER = "io.adafruit.com";
+            const MQTT_PORT = 443; // WSS Port
+            const MQTT_CLIENT_ID = "WebDashboard_" + Math.random().toString(16).substr(2, 8);
+
+            // --- UI FUNCTIONS ---
+            window.showSettings = function () {
+                document.getElementById('settings-modal').classList.remove('hidden');
+                document.getElementById('aio-user').value = MQTT_USER;
+                document.getElementById('aio-key').value = MQTT_KEY;
+            }
+
+            window.saveSettings = function () {
+                const user = document.getElementById('aio-user').value.trim();
+                const key = document.getElementById('aio-key').value.trim();
+
+                if (!user || !key) {
+                    alert("Please enter both Username and Key");
+                    return;
+                }
+
+                localStorage.setItem('aio_user', user);
+                localStorage.setItem('aio_key', key);
+                MQTT_USER = user;
+                MQTT_KEY = key;
+
+                document.getElementById('settings-modal').classList.add('hidden');
+                log("Settings saved. Connecting...");
+
+                // Re-init topics with new user
+                initMQTT();
+            }
+
+            // --- CHART SETUP ---
+            try {
+                const ctx = document.getElementById('sensorChart').getContext('2d');
+                sensorChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            { label: 'Temperature (°C)', borderColor: '#f87171', backgroundColor: 'rgba(248, 113, 113, 0.1)', data: [], tension: 0.4, fill: true },
+                            { label: 'Humidity (%)', borderColor: '#60a5fa', backgroundColor: 'rgba(96, 165, 250, 0.1)', data: [], tension: 0.4, fill: true }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: '#94a3b8' } } },
+                        scales: {
+                            y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8' } },
+                            x: { grid: { display: false }, ticks: { display: false } }
+                        },
+                        animation: { duration: 1000 }
+                    }
+                });
+            } catch (e) {
+                log("Chart Init Error: " + e.message);
+            }
+
+            // --- MQTT CLIENT ---
+            function initMQTT() {
+                if (!MQTT_USER || !MQTT_KEY) {
+                    log("Credentials missing. Please configure settings.");
+                    showSettings();
+                    return;
+                }
+
+                if (typeof Paho === 'undefined') {
+                    log("Error: Paho MQTT library not loaded. Check internet connection.");
+                    return;
+                }
+
+                if (client && isConnected) {
+                    client.disconnect();
+                }
+
+                log("Init MQTT Client...");
+                try {
+                    client = new Paho.MQTT.Client(MQTT_BROKER, MQTT_PORT, MQTT_CLIENT_ID);
+                    client.onConnectionLost = onConnectionLost;
+                    client.onMessageArrived = onMessageArrived;
+                    connect();
+                } catch (e) {
+                    log("MQTT Init Error: " + e.message);
+                }
+            }
+
+            function connect() {
+                updateStatus(false);
+                log("Connecting to " + MQTT_BROKER + "...");
+                try {
+                    client.connect({
+                        useSSL: true,
+                        userName: MQTT_USER,
+                        password: MQTT_KEY,
+                        onSuccess: onConnect,
+                        onFailure: onFailure
+                    });
+                } catch (e) {
+                    log("Connect Error: " + e.message);
+                }
+            }
+
+            function onConnect() {
+                log("Connected!");
+                isConnected = true;
+                updateStatus(true);
+                log("Subscribing...");
+                client.subscribe(MQTT_USER + "/feeds/temperature");
+                client.subscribe(MQTT_USER + "/feeds/humidity");
+                client.subscribe(MQTT_USER + "/feeds/pressure");
+            }
+
+            function onFailure(e) {
+                log("Connection Failed: " + e.errorMessage);
+                isConnected = false;
+                updateStatus(false);
+                // Don't auto-retry immediately if auth failed, might be wrong key
+                if (e.errorCode === 8) { // Not authorized
+                    log("Auth failed. Check settings.");
+                    showSettings();
+                } else {
+                    setTimeout(connect, 5000);
+                }
+            }
+
+            function onConnectionLost(responseObject) {
+                if (responseObject.errorCode !== 0) {
+                    log("Connection Lost: " + responseObject.errorMessage);
+                }
+                isConnected = false;
+                updateStatus(false);
+                setTimeout(connect, 5000);
+            }
+
+            function onMessageArrived(message) {
+                const topic = message.destinationName;
+                const payload = message.payloadString;
+                log("Msg: " + topic + " -> " + payload);
+
+                // Update Timestamp
+                const now = new Date().toLocaleTimeString();
+                const ts = document.getElementById('last-updated');
+                if (ts) ts.innerText = "Updated: " + now;
+
+                const val = parseFloat(payload);
+                if (topic.includes("temperature")) {
+                    document.getElementById('val-temp').innerText = val.toFixed(1);
+                    addDataToChart(0, val);
+                } else if (topic.includes("humidity")) {
+                    document.getElementById('val-hum').innerText = val.toFixed(1);
+                    addDataToChart(1, val);
+                } else if (topic.includes("pressure")) {
+                    document.getElementById('val-press').innerText = val.toFixed(1);
+                }
+            }
+
+            window.sendCommand = function (cmd) { // Expose to global scope for onclick
+                if (!client || !isConnected) {
+                    alert("Not connected to MQTT! Please wait...");
+                    return;
+                }
+                const text = document.getElementById('status-text');
+                text.innerText = "Sending " + cmd + "...";
+                text.className = "text-sm font-medium text-blue-400";
+
+                const message = new Paho.MQTT.Message(cmd);
+                message.destinationName = MQTT_USER + "/feeds/command";
+                client.send(message);
+                log("Sent: " + cmd);
+
+                setTimeout(() => { if (isConnected) updateStatus(true); }, 1000);
+            };
+
+            function updateStatus(connected) {
+                const dot = document.getElementById('status-dot');
+                const text = document.getElementById('status-text');
+                if (connected) {
+                    dot.className = "status-dot status-connected";
+                    text.innerText = "Connected";
+                    text.className = "text-sm font-medium text-green-400";
+                } else {
+                    dot.className = "status-dot status-disconnected";
+                    text.innerText = "Disconnected";
+                    text.className = "text-sm font-medium text-red-400";
+                }
+            }
+
+            function addDataToChart(datasetIndex, value) {
+                if (!sensorChart) return;
+                if (sensorChart.data.labels.length > 20) {
+                    sensorChart.data.labels.shift();
+                    sensorChart.data.datasets[0].data.shift();
+                    sensorChart.data.datasets[1].data.shift();
+                }
+                sensorChart.data.labels.push(new Date().toLocaleTimeString());
+                sensorChart.data.datasets[datasetIndex].data.push(value);
+                sensorChart.update();
+            }
+
+            // Start
+            initMQTT();
+        });
+    </script>
+</body>
+
+</html>
