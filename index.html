@@ -189,6 +189,89 @@
             </div>
         </div>
 
+        <!-- Threshold Controls Section -->
+        <div class="glass-panel p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">🎚️ Threshold Settings</h3>
+                <div id="alert-indicator"
+                    class="hidden px-3 py-1 rounded-full text-sm font-bold bg-red-500/20 text-red-400 animate-pulse">
+                    ⚠️ ALERT ACTIVE
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Temperature Thresholds -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm text-gray-400">🌡️ Temperature Max</label>
+                        <span id="temp-max-val" class="text-sm font-bold text-white">30°C</span>
+                    </div>
+                    <input type="range" id="temp-max" min="20" max="45" value="30" step="0.5"
+                        class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb"
+                        oninput="updateThreshold('TEMP_MAX', this.value, '°C')">
+
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm text-gray-400">🌡️ Temperature Min</label>
+                        <span id="temp-min-val" class="text-sm font-bold text-white">15°C</span>
+                    </div>
+                    <input type="range" id="temp-min" min="5" max="25" value="15" step="0.5"
+                        class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb"
+                        oninput="updateThreshold('TEMP_MIN', this.value, '°C')">
+                </div>
+
+                <!-- Humidity Thresholds -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm text-gray-400">💧 Humidity Max</label>
+                        <span id="hum-max-val" class="text-sm font-bold text-white">70%</span>
+                    </div>
+                    <input type="range" id="hum-max" min="40" max="90" value="70" step="1"
+                        class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb"
+                        oninput="updateThreshold('HUM_MAX', this.value, '%')">
+
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm text-gray-400">💧 Humidity Min</label>
+                        <span id="hum-min-val" class="text-sm font-bold text-white">30%</span>
+                    </div>
+                    <input type="range" id="hum-min" min="10" max="50" value="30" step="1"
+                        class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb"
+                        oninput="updateThreshold('HUM_MIN', this.value, '%')">
+                </div>
+
+                <!-- Pressure Thresholds -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm text-gray-400">🌪️ Pressure Max</label>
+                        <span id="press-max-val" class="text-sm font-bold text-white">1050 hPa</span>
+                    </div>
+                    <input type="range" id="press-max" min="1000" max="1100" value="1050" step="1"
+                        class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb"
+                        oninput="updateThreshold('PRESS_MAX', this.value, ' hPa')">
+
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm text-gray-400">🌪️ Pressure Min</label>
+                        <span id="press-min-val" class="text-sm font-bold text-white">950 hPa</span>
+                    </div>
+                    <input type="range" id="press-min" min="900" max="1000" value="950" step="1"
+                        class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb"
+                        oninput="updateThreshold('PRESS_MIN', this.value, ' hPa')">
+                </div>
+            </div>
+
+            <!-- Alert Status Box -->
+            <div id="alert-status"
+                class="mt-4 p-4 rounded-lg bg-green-900/30 text-green-400 border border-green-700/50 hidden">
+                <div class="flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                    <span class="font-semibold">All values within thresholds</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Charts Section -->
         <div class="glass-panel p-6">
             <h3 class="text-lg font-semibold mb-4">Live Trends</h3>
@@ -202,10 +285,17 @@
             <div class="flex flex-col md:flex-row gap-4 justify-center">
                 <button onclick="sendCommand('READ')"
                     class="neon-button px-8 py-3 rounded-xl font-bold text-white flex-1">
-                    READ SENSORS
+                    📊 READ SENSORS
+                </button>
+                <button onclick="sendCommand('STATS')"
+                    class="neon-button px-8 py-3 rounded-xl font-bold text-white flex-1"
+                    style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    ⚙️ SYSTEM STATS
                 </button>
             </div>
-            <p class="mt-3 text-xs text-gray-500">Tap "Read Sensors" to refresh data</p>
+            <p class="mt-3 text-xs text-gray-500">Tap "Read Sensors" to refresh data<br>
+                "System Stats" displays in <strong>serial console</strong> (115200 baud)
+            </p>
         </div>
 
         <!-- Debug Log -->
@@ -495,6 +585,7 @@
                 client.subscribe(MQTT_USER + "/feeds/humidity");
                 client.subscribe(MQTT_USER + "/feeds/pressure");
                 client.subscribe(MQTT_USER + "/feeds/memory");
+                client.subscribe(MQTT_USER + "/feeds/alert");
             }
 
             function onFailure(e) {
@@ -540,6 +631,37 @@
                     document.getElementById('val-press').innerText = val.toFixed(1);
                 } else if (topic.includes("memory")) {
                     document.getElementById('val-mem').innerText = val.toFixed(0);
+                } else if (topic.includes("alert")) {
+                    const alertIndicator = document.getElementById('alert-indicator');
+                    const alertStatus = document.getElementById('alert-status');
+
+                    if (val == 1) {
+                        // Alert active
+                        alertIndicator.classList.remove('hidden');
+                        alertStatus.classList.remove('hidden', 'bg-green-900/30', 'text-green-400', 'border-green-700/50');
+                        alertStatus.classList.add('bg-red-900/30', 'text-red-400', 'border-red-700/50');
+                        alertStatus.innerHTML = `
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 mr-2 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="font-semibold">⚠️ Threshold Exceeded!</span>
+                            </div>
+                        `;
+                    } else {
+                        // Alert cleared
+                        alertIndicator.classList.add('hidden');
+                        alertStatus.classList.remove('hidden', 'bg-red-900/30', 'text-red-400', 'border-red-700/50');
+                        alertStatus.classList.add('bg-green-900/30', 'text-green-400', 'border-green-700/50');
+                        alertStatus.innerHTML = `
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="font-semibold">All values within thresholds</span>
+                            </div>
+                        `;
+                    }
                 }
             }
 
@@ -558,6 +680,22 @@
                 log("Sent: " + cmd);
 
                 setTimeout(() => { if (isConnected) updateStatus(true); }, 1000);
+            };
+
+            // Threshold update function
+            window.updateThreshold = function (type, value, unit) {
+                // Update display
+                const displayId = type.toLowerCase().replace('_', '-') + '-val';
+                document.getElementById(displayId).innerText = value + unit;
+
+                // Send command to firmware
+                const command = 'SET_' + type + '_' + value;
+                if (client && isConnected) {
+                    const message = new Paho.MQTT.Message(command);
+                    message.destinationName = MQTT_USER + "/feeds/command";
+                    client.send(message);
+                    log("Threshold updated: " + command);
+                }
             };
 
             function updateStatus(connected) {
